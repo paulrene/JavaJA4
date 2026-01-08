@@ -18,8 +18,8 @@ public final class Ja4LatencyFingerprint {
     if (state == null) {
       return null;
     }
-    long firstRequest = state.firstRequestAtNanos();
-    long accepted = state.acceptedAtNanos();
+    long firstRequest = state.getFirstRequestAtNanos();
+    long accepted = state.getAcceptedAtNanos();
     if (firstRequest == 0L || accepted == 0L) {
       return null;
     }

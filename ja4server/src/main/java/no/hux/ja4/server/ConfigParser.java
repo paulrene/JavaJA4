@@ -95,13 +95,13 @@ public final class ConfigParser {
   }
 
   private static void validate(ServerConfig config) {
-    if (config.port() < 1 || config.port() > 65535) {
+    if (config.getPort() < 1 || config.getPort() > 65535) {
       throw new IllegalArgumentException("Port must be between 1 and 65535");
     }
-    if (config.isProd() && config.certPath() == null && config.domain() == null) {
+    if (config.isProd() && config.getCertPath() == null && config.getDomain() == null) {
       throw new IllegalArgumentException("Production mode requires --domain or --cert/--key");
     }
-    if ((config.certPath() == null) != (config.keyPath() == null)) {
+    if ((config.getCertPath() == null) != (config.getKeyPath() == null)) {
       throw new IllegalArgumentException("Both --cert and --key must be provided together");
     }
   }

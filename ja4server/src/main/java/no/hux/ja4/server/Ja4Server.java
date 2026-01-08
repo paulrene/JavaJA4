@@ -42,7 +42,7 @@ public final class Ja4Server {
     SslContext sslContext = SslContextBuilder.forServer(certPath.toFile(), keyPath.toFile())
         .build();
 
-    FingerprintStore store = new FingerprintStore(config.ttl(), logger);
+    FingerprintStore store = new FingerprintStore(config.getTtl(), logger);
     AttributeKey<ConnectionState> stateKey = AttributeKey.valueOf("ja4State");
 
     EventLoopGroup bossGroup = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
@@ -59,14 +59,14 @@ public final class Ja4Server {
               ch.pipeline().addLast("handshake", new HandshakeTimingHandler(stateKey, logger));
               ch.pipeline().addLast("httpCodec", new HttpServerCodec());
               ch.pipeline().addLast("aggregator",
-                  new HttpObjectAggregator(config.maxContentLength()));
+                  new HttpObjectAggregator(config.getMaxContentLength()));
               ch.pipeline().addLast("handler", new RequestHandler(store, stateKey, logger));
             }
           });
 
-      InetSocketAddress bindAddress = resolveIpv4Address(config.host(), config.port());
+      InetSocketAddress bindAddress = resolveIpv4Address(config.getHost(), config.getPort());
       Channel channel = bootstrap.bind(bindAddress).sync().channel();
-      logger.info(() -> "JA4 server listening on https://" + config.host() + ":" + config.port());
+      logger.info(() -> "JA4 server listening on https://" + config.getHost() + ":" + config.getPort());
       channel.closeFuture().sync();
     } finally {
       store.shutdown();
@@ -76,13 +76,13 @@ public final class Ja4Server {
   }
 
   private Path resolveCertPath(ServerConfig config) {
-    Path certPath = config.certPath();
+    Path certPath = config.getCertPath();
     if (certPath != null) {
       ensureFileExists(certPath, "certificate");
       return certPath;
     }
     if (config.isProd()) {
-      Path resolved = config.letsEncryptDir().resolve(config.domain()).resolve("fullchain.pem");
+      Path resolved = config.getLetsEncryptDir().resolve(config.getDomain()).resolve("fullchain.pem");
       ensureFileExists(resolved, "certificate");
       return resolved;
     }
@@ -92,13 +92,13 @@ public final class Ja4Server {
   }
 
   private Path resolveKeyPath(ServerConfig config) {
-    Path keyPath = config.keyPath();
+    Path keyPath = config.getKeyPath();
     if (keyPath != null) {
       ensureFileExists(keyPath, "private key");
       return keyPath;
     }
     if (config.isProd()) {
-      Path resolved = config.letsEncryptDir().resolve(config.domain()).resolve("privkey.pem");
+      Path resolved = config.getLetsEncryptDir().resolve(config.getDomain()).resolve("privkey.pem");
       ensureFileExists(resolved, "private key");
       return resolved;
     }

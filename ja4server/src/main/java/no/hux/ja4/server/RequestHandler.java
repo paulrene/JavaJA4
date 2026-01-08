@@ -93,7 +93,7 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     if (state != null) {
       state.markFirstRequest(System.nanoTime());
     }
-    String ja4 = state != null ? state.ja4() : null;
+    String ja4 = state != null ? state.getJa4() : null;
     String ja4h = Ja4HttpFingerprint.compute(request);
     String ja4l = Ja4LatencyFingerprint.compute(state);
 

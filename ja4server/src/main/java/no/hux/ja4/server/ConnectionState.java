@@ -12,11 +12,11 @@ public final class ConnectionState {
     this.acceptedAtNanos = acceptedAtNanos;
   }
 
-  public long acceptedAtNanos() {
+  public long getAcceptedAtNanos() {
     return acceptedAtNanos;
   }
 
-  public long handshakeAtNanos() {
+  public long getHandshakeAtNanos() {
     return handshakeAtNanos;
   }
 
@@ -24,7 +24,7 @@ public final class ConnectionState {
     this.handshakeAtNanos = handshakeAtNanos;
   }
 
-  public long firstRequestAtNanos() {
+  public long getFirstRequestAtNanos() {
     return firstRequestAtNanos;
   }
 
@@ -36,7 +36,7 @@ public final class ConnectionState {
     return false;
   }
 
-  public ClientHelloInfo clientHelloInfo() {
+  public ClientHelloInfo getClientHelloInfo() {
     return clientHelloInfo;
   }
 
@@ -44,7 +44,7 @@ public final class ConnectionState {
     this.clientHelloInfo = clientHelloInfo;
   }
 
-  public String ja4() {
+  public String getJa4() {
     return ja4;
   }
 

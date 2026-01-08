@@ -25,31 +25,31 @@ public final class ClientHelloInfo {
     this.serverName = serverName;
   }
 
-  public int legacyVersion() {
+  public int getLegacyVersion() {
     return legacyVersion;
   }
 
-  public List<String> cipherSuites() {
+  public List<String> getCipherSuites() {
     return Collections.unmodifiableList(cipherSuites);
   }
 
-  public List<String> extensions() {
+  public List<String> getExtensions() {
     return Collections.unmodifiableList(extensions);
   }
 
-  public List<String> supportedVersions() {
+  public List<String> getSupportedVersions() {
     return Collections.unmodifiableList(supportedVersions);
   }
 
-  public List<String> signatureAlgorithms() {
+  public List<String> getSignatureAlgorithms() {
     return Collections.unmodifiableList(signatureAlgorithms);
   }
 
-  public List<String> alpnProtocols() {
+  public List<String> getAlpnProtocols() {
     return Collections.unmodifiableList(alpnProtocols);
   }
 
-  public String serverName() {
+  public String getServerName() {
     return serverName;
   }
 }

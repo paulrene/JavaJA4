@@ -12,8 +12,8 @@ public final class Ja4TlsFingerprint {
   public static String compute(ClientHelloInfo info) {
     // JA4: t<ver><sni><cipher_count><ext_count><alpn>_<cipher_hash>_<ext_hash>
     String ptype = "t";
-    List<String> extensions = info.extensions();
-    List<String> ciphers = info.cipherSuites();
+    List<String> extensions = info.getExtensions();
+    List<String> ciphers = info.getCipherSuites();
 
     // Count non-GREASE extensions for the extension count field.
     int extCount = 0;
@@ -30,7 +30,7 @@ public final class Ja4TlsFingerprint {
     Ja4Utils.HexSortResult sortedExtensions = Ja4Utils.sortHexValues(extensions, true, true);
 
     String sortedExtensionsRaw = sortedExtensions.raw();
-    List<String> signatureAlgorithms = info.signatureAlgorithms();
+    List<String> signatureAlgorithms = info.getSignatureAlgorithms();
     if (!signatureAlgorithms.isEmpty()) {
       // When present, signature algorithms are appended to the extension list before
       // hashing.
@@ -44,17 +44,17 @@ public final class Ja4TlsFingerprint {
 
     // TLS version is taken from supported_versions when present, else legacy
     // ClientHello version.
-    String legacyHex = Ja4Utils.hex(info.legacyVersion());
-    String versionHex = info.supportedVersions().isEmpty() ? legacyHex
-        : Ja4Utils.getSupportedVersion(info.supportedVersions(), legacyHex);
+    String legacyHex = Ja4Utils.hex(info.getLegacyVersion());
+    String versionHex = info.getSupportedVersions().isEmpty() ? legacyHex
+        : Ja4Utils.getSupportedVersion(info.getSupportedVersions(), legacyHex);
     String version = Ja4Utils.tlsVersionCode(versionHex);
 
     // SNI presence and first ALPN token contribute to the a-part.
-    String sni = info.serverName() == null ? "i" : "d";
+    String sni = info.getServerName() == null ? "i" : "d";
 
     String alpn = "00";
-    if (!info.alpnProtocols().isEmpty()) {
-      String protocol = info.alpnProtocols().get(0);
+    if (!info.getAlpnProtocols().isEmpty()) {
+      String protocol = info.getAlpnProtocols().get(0);
       if (protocol.length() > 2) {
         alpn = "" + protocol.charAt(0) + protocol.charAt(protocol.length() - 1);
       } else if (!protocol.isEmpty()) {

@@ -29,39 +29,39 @@ public final class ServerConfig {
     this.maxContentLength = maxContentLength;
   }
 
-  public String host() {
+  public String getHost() {
     return host;
   }
 
-  public int port() {
+  public int getPort() {
     return port;
   }
 
-  public String environment() {
+  public String getEnvironment() {
     return environment;
   }
 
-  public Path certPath() {
+  public Path getCertPath() {
     return certPath;
   }
 
-  public Path keyPath() {
+  public Path getKeyPath() {
     return keyPath;
   }
 
-  public Path letsEncryptDir() {
+  public Path getLetsEncryptDir() {
     return letsEncryptDir;
   }
 
-  public String domain() {
+  public String getDomain() {
     return domain;
   }
 
-  public Duration ttl() {
+  public Duration getTtl() {
     return ttl;
   }
 
-  public int maxContentLength() {
+  public int getMaxContentLength() {
     return maxContentLength;
   }
 
