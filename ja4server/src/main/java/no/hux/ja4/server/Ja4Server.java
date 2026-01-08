@@ -60,13 +60,16 @@ public final class Ja4Server {
               ch.pipeline().addLast("httpCodec", new HttpServerCodec());
               ch.pipeline().addLast("aggregator",
                   new HttpObjectAggregator(config.getMaxContentLength()));
+              if (config.getApiUserPassword() != null) {
+                ch.pipeline().addLast(new BasicAuthHandler(config, "/api"));
+              }
               ch.pipeline().addLast("handler", new RequestHandler(store, stateKey, logger));
             }
           });
 
       InetSocketAddress bindAddress = resolveIpv4Address(config.getHost(), config.getPort());
       Channel channel = bootstrap.bind(bindAddress).sync().channel();
-      logger.info(() -> "JA4 server listening on https://" + config.getHost() + ":" + config.getPort());
+      logger.info("JA4 server listening on https://" + config.getHost() + ":" + config.getPort());
       channel.closeFuture().sync();
     } finally {
       store.shutdown();
@@ -82,7 +85,8 @@ public final class Ja4Server {
       return certPath;
     }
     if (config.isProd()) {
-      Path resolved = config.getLetsEncryptDir().resolve(config.getDomain()).resolve("fullchain.pem");
+      Path resolved = config.getLetsEncryptDir().resolve(config.getDomain())
+          .resolve("fullchain.pem");
       ensureFileExists(resolved, "certificate");
       return resolved;
     }

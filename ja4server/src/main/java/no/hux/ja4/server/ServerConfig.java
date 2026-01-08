@@ -15,9 +15,11 @@ public final class ServerConfig {
   private final String domain;
   private final Duration ttl;
   private final int maxContentLength;
+  private final String apiUserPassword;
 
   public ServerConfig(String host, int port, String environment, Path certPath, Path keyPath,
-      Path letsEncryptDir, String domain, Duration ttl, int maxContentLength) {
+      Path letsEncryptDir, String domain, Duration ttl, int maxContentLength,
+      String apiUserPassword) {
     this.host = host;
     this.port = port;
     this.environment = environment.toLowerCase(Locale.ROOT);
@@ -27,6 +29,7 @@ public final class ServerConfig {
     this.domain = domain;
     this.ttl = ttl;
     this.maxContentLength = maxContentLength;
+    this.apiUserPassword = apiUserPassword;
   }
 
   public String getHost() {
@@ -63,6 +66,10 @@ public final class ServerConfig {
 
   public int getMaxContentLength() {
     return maxContentLength;
+  }
+
+  public String getApiUserPassword() {
+    return apiUserPassword;
   }
 
   public boolean isProd() {
