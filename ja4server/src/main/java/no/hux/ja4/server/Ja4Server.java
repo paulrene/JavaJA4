@@ -25,7 +25,6 @@ import java.util.logging.Logger;
 import no.hux.ja4.store.FingerprintStore;
 
 public final class Ja4Server {
-
   private final ServerConfig config;
   private final Logger logger;
 
@@ -44,6 +43,7 @@ public final class Ja4Server {
 
     FingerprintStore store = new FingerprintStore(config.getTtl(), logger);
     AttributeKey<ConnectionState> stateKey = AttributeKey.valueOf("ja4State");
+    long serverStartMillis = System.currentTimeMillis();
 
     EventLoopGroup bossGroup = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
     EventLoopGroup workerGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
@@ -63,7 +63,7 @@ public final class Ja4Server {
               if (config.getApiUserPassword() != null) {
                 ch.pipeline().addLast(new BasicAuthHandler(config, "/api"));
               }
-              ch.pipeline().addLast("handler", new RequestHandler(store, stateKey, logger));
+              ch.pipeline().addLast("handler", new RequestHandler(store, stateKey, logger, serverStartMillis));
             }
           });
 

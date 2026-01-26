@@ -28,7 +28,6 @@ import no.hux.ja4.store.FingerprintRecord;
 import no.hux.ja4.store.FingerprintStore;
 
 public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
-
   private static final String LOOKUP_PREFIX = "/api/lookup/";
   private static final int MAX_SESSION_ID_LENGTH = 256;
   private static final byte[] PIXEL_GIF = new byte[] { 71, 73, 70, 56, 57, 97, 1, 0, 1, 0,
@@ -38,12 +37,14 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
   private final FingerprintStore store;
   private final AttributeKey<ConnectionState> stateKey;
   private final Logger logger;
+  private final long serverStartMillis;
 
   public RequestHandler(FingerprintStore store, AttributeKey<ConnectionState> stateKey,
-      Logger logger) {
+      Logger logger, long serverStartMillis) {
     this.store = store;
     this.stateKey = stateKey;
     this.logger = logger;
+    this.serverStartMillis = serverStartMillis;
   }
 
   @Override
@@ -79,7 +80,7 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
       sendJson(ctx, request, HttpResponseStatus.NOT_FOUND, errorJson("not_found"));
       return;
     }
-    sendJson(ctx, request, HttpResponseStatus.OK, recordToJson(record));
+    sendJson(ctx, request, HttpResponseStatus.OK, recordToJson(record, uptimeSeconds()));
   }
 
   private void handleFingerprint(ChannelHandlerContext ctx, FullHttpRequest request, String path) {
@@ -172,13 +173,15 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     }
   }
 
-  private static String recordToJson(FingerprintRecord record) {
+  private static String recordToJson(FingerprintRecord record, long uptimeSeconds) {
     StringBuilder sb = new StringBuilder();
     sb.append('{');
     appendField(sb, "sessionId", record.sessionId());
     sb.append(',');
     appendField(sb, "timestamp",
         java.time.format.DateTimeFormatter.ISO_INSTANT.format(record.timestamp()));
+    sb.append(',');
+    appendNumericField(sb, "uptimeSeconds", uptimeSeconds);
     sb.append(',');
     appendField(sb, "ip", record.ip());
     sb.append(',');
@@ -212,6 +215,10 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     }
   }
 
+  private static void appendNumericField(StringBuilder sb, String key, long value) {
+    sb.append('"').append(escape(key)).append('"').append(':').append(value);
+  }
+
   private static String escape(String value) {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < value.length(); i++) {
@@ -234,6 +241,14 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
       }
     }
     return sb.toString();
+  }
+
+  private long uptimeSeconds() {
+    long elapsedMillis = System.currentTimeMillis() - serverStartMillis;
+    if (elapsedMillis <= 0L) {
+      return 0L;
+    }
+    return elapsedMillis / 1000L;
   }
 
   @Override
