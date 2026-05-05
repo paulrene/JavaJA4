@@ -24,10 +24,31 @@ fi
 
 JAVA_OPTS=${JAVA_OPTS:-""}
 
-nohup java $JAVA_OPTS -jar "$JAR_PATH" "$@" > "$LOG_DIR/ja4-server.log" 2>&1 &
+LOG_FILE="$LOG_DIR/ja4-server.log"
+
+nohup java $JAVA_OPTS -jar "$JAR_PATH" "$@" > "$LOG_FILE" 2>&1 &
 PID=$!
 
 echo "$PID" > "$PID_FILE"
-printf '%s\n' "$@" > "$ARGS_FILE"
+if (($#)); then
+  printf '%s\n' "$@" > "$ARGS_FILE"
+else
+  : > "$ARGS_FILE"
+fi
+
+# Make sure the JVM is actually still running before declaring success.
+for _ in {1..10}; do
+  if ! kill -0 "$PID" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.3
+done
+
+if ! kill -0 "$PID" >/dev/null 2>&1; then
+  rm -f "$PID_FILE"
+  echo "JA4 server failed to start (PID $PID exited). Last log lines:" >&2
+  tail -n 40 "$LOG_FILE" >&2 || true
+  exit 1
+fi
 
 echo "Started JA4 server (PID $PID)."
