@@ -10,11 +10,12 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Base64;
 
 public final class BasicAuthHandler extends ChannelInboundHandlerAdapter {
 
-  private final String expectedAuthHeader;
+  private final byte[] expectedAuthHeaderBytes;
   private final String protectedPath;
 
   public BasicAuthHandler(ServerConfig config, String protectedPath) {
@@ -22,8 +23,9 @@ public final class BasicAuthHandler extends ChannelInboundHandlerAdapter {
     if (token.indexOf(":") == -1) {
       throw new IllegalArgumentException("ApiUserPassword is not on the form user:password");
     }
-    this.expectedAuthHeader = "Basic "
+    String expectedAuthHeader = "Basic "
         + Base64.getEncoder().encodeToString(token.getBytes(StandardCharsets.UTF_8));
+    this.expectedAuthHeaderBytes = expectedAuthHeader.getBytes(StandardCharsets.UTF_8);
     this.protectedPath = protectedPath;
   }
 
@@ -41,7 +43,10 @@ public final class BasicAuthHandler extends ChannelInboundHandlerAdapter {
 
     String authHeader = request.headers().get(HttpHeaderNames.AUTHORIZATION);
 
-    if (!expectedAuthHeader.equals(authHeader)) {
+    byte[] providedBytes = authHeader == null
+        ? new byte[0]
+        : authHeader.getBytes(StandardCharsets.UTF_8);
+    if (!MessageDigest.isEqual(expectedAuthHeaderBytes, providedBytes)) {
       sendUnauthorized(ctx);
       request.release();
       return;

@@ -183,9 +183,6 @@ public final class ClientHelloParser {
       buffer.getBytes(index, protocol);
       alpnProtocols.add(new String(protocol, StandardCharsets.US_ASCII));
       index += nameLen;
-      if (!alpnProtocols.isEmpty()) {
-        return;
-      }
     }
   }
 
