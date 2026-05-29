@@ -190,6 +190,8 @@ Command-line options:
 --lets-encrypt-dir <path>     Let's Encrypt base dir (default: /etc/letsencrypt/live)
 --ttl-seconds <seconds>       In-memory TTL (default: 86400)
 --max-content-length <bytes>  Max HTTP body (default: 1048576)
+--max-store-entries <count>   Max fingerprint records kept in memory (default: 100000)
+--require-uuid-session-id <bool>  Reject session IDs that are not valid UUIDs (default: false)
 ```
 
 ### Notes on TLS Configuration
@@ -204,6 +206,7 @@ Command-line options:
   - Builds the jar (if needed) and generates local certs.
 - `scripts/start.sh`
   - Starts the service in the background and writes a PID file.
+  - Sets `JAVA_OPTS` to `-Xmx512m -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=logs/` by default so the JVM fails fast with a heap dump on OOM. Override by exporting `JAVA_OPTS` before invoking the script.
 - `scripts/stop.sh`
   - Stops the running service using the PID file.
 - `scripts/rotate-certs.sh`
@@ -215,6 +218,8 @@ Command-line options:
 
 - Fingerprints are stored in-memory keyed by SessionID.
 - Data expires after `--ttl-seconds` (default: 24 hours).
+- The store is capped at `--max-store-entries` records (default: 100 000); when full, the oldest entry is evicted on insert. Re-inserting an existing SessionID refreshes its position so frequently-seen sessions aren't evicted prematurely.
+- When `--require-uuid-session-id true` is set, requests whose SessionID is not a canonical 8-4-4-4-12 hex UUID are rejected with `400`. Use this when your clients always provide UUIDs, to prevent scanner traffic from polluting the store.
 - Lookups after expiry return `404`.
 
 ## Logging

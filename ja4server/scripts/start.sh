@@ -22,7 +22,7 @@ if [[ ! -f "$JAR_PATH" ]]; then
   mvn -q -DskipTests package
 fi
 
-JAVA_OPTS=${JAVA_OPTS:-""}
+JAVA_OPTS=${JAVA_OPTS:-"-Xmx512m -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=$LOG_DIR"}
 
 LOG_FILE="$LOG_DIR/ja4-server.log"
 

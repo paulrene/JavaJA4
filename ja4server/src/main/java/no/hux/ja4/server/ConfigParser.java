@@ -52,10 +52,14 @@ public final class ConfigParser {
         .ofSeconds(parseLong(options.getOrDefault("ttl-seconds", "86400"), "ttl-seconds"));
     int maxContentLength = parseInt(options.getOrDefault("max-content-length", "1048576"),
         "max-content-length");
+    int maxStoreEntries = parseInt(options.getOrDefault("max-store-entries", "100000"),
+        "max-store-entries");
+    boolean requireUuidSessionId = parseBoolean(
+        options.getOrDefault("require-uuid-session-id", "false"), "require-uuid-session-id");
     String apiUserPassword = options.get("userpass");
 
     ServerConfig config = new ServerConfig(host, port, env, cert, key, letsEncryptDir, domain, ttl,
-        maxContentLength, apiUserPassword);
+        maxContentLength, maxStoreEntries, requireUuidSessionId, apiUserPassword);
     validate(config);
     return config;
   }
@@ -75,6 +79,8 @@ public final class ConfigParser {
           --lets-encrypt-dir <path>       Let's Encrypt base dir (default: /etc/letsencrypt/live)
           --ttl-seconds <seconds>         In-memory TTL (default: 86400)
           --max-content-length <bytes>    Max HTTP body (default: 1048576)
+          --max-store-entries <count>     Max fingerprint records kept in memory (default: 100000)
+          --require-uuid-session-id <bool> Reject session IDs that are not valid UUIDs (default: false)
           --help                          Show this help
         """;
     System.out.println(usage);
@@ -96,9 +102,22 @@ public final class ConfigParser {
     }
   }
 
+  private static boolean parseBoolean(String value, String name) {
+    if ("true".equalsIgnoreCase(value) || "1".equals(value)) {
+      return true;
+    }
+    if ("false".equalsIgnoreCase(value) || "0".equals(value)) {
+      return false;
+    }
+    throw new IllegalArgumentException("Invalid " + name + ": " + value);
+  }
+
   private static void validate(ServerConfig config) {
     if (config.getPort() < 1 || config.getPort() > 65535) {
       throw new IllegalArgumentException("Port must be between 1 and 65535");
+    }
+    if (config.getMaxStoreEntries() < 1) {
+      throw new IllegalArgumentException("max-store-entries must be >= 1");
     }
     if (config.isProd() && config.getCertPath() == null && config.getDomain() == null) {
       throw new IllegalArgumentException("Production mode requires --domain or --cert/--key");

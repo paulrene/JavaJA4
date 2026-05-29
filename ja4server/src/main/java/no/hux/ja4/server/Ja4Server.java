@@ -41,7 +41,8 @@ public final class Ja4Server {
     SslContext sslContext = SslContextBuilder.forServer(certPath.toFile(), keyPath.toFile())
         .build();
 
-    FingerprintStore store = new FingerprintStore(config.getTtl(), logger);
+    FingerprintStore store = new FingerprintStore(config.getTtl(), config.getMaxStoreEntries(),
+        logger);
     AttributeKey<ConnectionState> stateKey = AttributeKey.valueOf("ja4State");
     long serverStartMillis = System.currentTimeMillis();
 
@@ -63,7 +64,8 @@ public final class Ja4Server {
               if (config.getApiUserPassword() != null) {
                 ch.pipeline().addLast(new BasicAuthHandler(config, "/api"));
               }
-              ch.pipeline().addLast("handler", new RequestHandler(store, stateKey, logger, serverStartMillis));
+              ch.pipeline().addLast("handler", new RequestHandler(store, stateKey, logger,
+                  serverStartMillis, config.isRequireUuidSessionId()));
             }
           });
 

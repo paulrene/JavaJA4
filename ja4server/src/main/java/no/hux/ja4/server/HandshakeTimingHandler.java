@@ -27,11 +27,7 @@ public final class HandshakeTimingHandler extends ChannelInboundHandlerAdapter {
         }
       } else {
         Throwable cause = event.cause();
-        Level level = Level.WARNING;
-        if (cause instanceof javax.net.ssl.SSLHandshakeException && cause.getMessage() != null
-            && cause.getMessage().contains("certificate_unknown")) {
-          level = Level.FINE;
-        }
+        Level level = RequestHandler.isBenignNetworkException(cause) ? Level.FINE : Level.WARNING;
         logger.log(level, "TLS handshake failed", cause);
       }
     }

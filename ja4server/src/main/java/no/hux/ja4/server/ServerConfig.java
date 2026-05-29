@@ -15,11 +15,13 @@ public final class ServerConfig {
   private final String domain;
   private final Duration ttl;
   private final int maxContentLength;
+  private final int maxStoreEntries;
+  private final boolean requireUuidSessionId;
   private final String apiUserPassword;
 
   public ServerConfig(String host, int port, String environment, Path certPath, Path keyPath,
       Path letsEncryptDir, String domain, Duration ttl, int maxContentLength,
-      String apiUserPassword) {
+      int maxStoreEntries, boolean requireUuidSessionId, String apiUserPassword) {
     this.host = host;
     this.port = port;
     this.environment = environment.toLowerCase(Locale.ROOT);
@@ -29,6 +31,8 @@ public final class ServerConfig {
     this.domain = domain;
     this.ttl = ttl;
     this.maxContentLength = maxContentLength;
+    this.maxStoreEntries = maxStoreEntries;
+    this.requireUuidSessionId = requireUuidSessionId;
     this.apiUserPassword = apiUserPassword;
   }
 
@@ -66,6 +70,14 @@ public final class ServerConfig {
 
   public int getMaxContentLength() {
     return maxContentLength;
+  }
+
+  public int getMaxStoreEntries() {
+    return maxStoreEntries;
+  }
+
+  public boolean isRequireUuidSessionId() {
+    return requireUuidSessionId;
   }
 
   public String getApiUserPassword() {

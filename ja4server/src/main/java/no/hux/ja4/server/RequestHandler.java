@@ -14,13 +14,19 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.ssl.NotSslRecordException;
+import io.netty.handler.ssl.SslHandshakeTimeoutException;
 import io.netty.util.AttributeKey;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLHandshakeException;
 import no.hux.ja4.fingerprint.Ja4HttpFingerprint;
 import no.hux.ja4.fingerprint.Ja4LatencyFingerprint;
@@ -30,6 +36,7 @@ import no.hux.ja4.store.FingerprintStore;
 public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
   private static final String LOOKUP_PREFIX = "/api/lookup/";
   private static final int MAX_SESSION_ID_LENGTH = 256;
+  private static final int CANONICAL_UUID_LENGTH = 36;
   private static final byte[] PIXEL_GIF = new byte[] { 71, 73, 70, 56, 57, 97, 1, 0, 1, 0,
       (byte) 128, 0, 0, 0, 0, 0, (byte) 255, (byte) 255, (byte) 255, 33, (byte) 249, 4, 1, 0, 0, 1,
       0, 44, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 68, 1, 0, 59 };
@@ -38,13 +45,15 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
   private final AttributeKey<ConnectionState> stateKey;
   private final Logger logger;
   private final long serverStartMillis;
+  private final boolean requireUuidSessionId;
 
   public RequestHandler(FingerprintStore store, AttributeKey<ConnectionState> stateKey,
-      Logger logger, long serverStartMillis) {
+      Logger logger, long serverStartMillis, boolean requireUuidSessionId) {
     this.store = store;
     this.stateKey = stateKey;
     this.logger = logger;
     this.serverStartMillis = serverStartMillis;
+    this.requireUuidSessionId = requireUuidSessionId;
   }
 
   @Override
@@ -123,7 +132,24 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     if (decoded.isEmpty() || decoded.contains("/") || decoded.length() > MAX_SESSION_ID_LENGTH) {
       return null;
     }
+    if (requireUuidSessionId && !isCanonicalUuid(decoded)) {
+      return null;
+    }
     return decoded;
+  }
+
+  private static boolean isCanonicalUuid(String value) {
+    // UUID.fromString alone accepts non-canonical forms with shorter hex groups on some
+    // JDKs, so we additionally enforce the 36-character canonical 8-4-4-4-12 layout.
+    if (value.length() != CANONICAL_UUID_LENGTH) {
+      return false;
+    }
+    try {
+      UUID.fromString(value);
+      return true;
+    } catch (IllegalArgumentException ex) {
+      return false;
+    }
   }
 
   private void sendContinue(ChannelHandlerContext ctx) {
@@ -256,12 +282,43 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     Throwable root = cause instanceof DecoderException && cause.getCause() != null
         ? cause.getCause()
         : cause;
-    if (root instanceof SSLHandshakeException && root.getMessage() != null
-        && root.getMessage().contains("certificate_unknown")) {
-      logger.log(Level.FINE, "TLS handshake failed (client did not trust certificate)", root);
+    if (isBenignNetworkException(root)) {
+      logger.log(Level.FINE, "Benign network/TLS exception", root);
     } else {
       logger.log(Level.WARNING, "Unhandled exception in pipeline", root);
     }
     ctx.close();
+  }
+
+  static boolean isBenignNetworkException(Throwable cause) {
+    if (cause == null) {
+      return false;
+    }
+    if (cause instanceof NotSslRecordException
+        || cause instanceof SslHandshakeTimeoutException
+        || cause instanceof ClosedChannelException) {
+      return true;
+    }
+    if (cause instanceof SSLHandshakeException) {
+      return true;
+    }
+    if (cause instanceof SSLException) {
+      String msg = cause.getMessage();
+      if (msg != null && (msg.contains("Received close_notify")
+          || msg.contains("Connection reset")
+          || msg.contains("closed already"))) {
+        return true;
+      }
+    }
+    if (cause instanceof IOException) {
+      String msg = cause.getMessage();
+      if (msg != null && (msg.contains("Connection reset")
+          || msg.contains("Broken pipe")
+          || msg.contains("Connection timed out")
+          || msg.contains("closed by the remote host"))) {
+        return true;
+      }
+    }
+    return false;
   }
 }

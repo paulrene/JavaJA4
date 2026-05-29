@@ -2,8 +2,8 @@ package no.hux.ja4.store;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -12,14 +12,31 @@ import java.util.logging.Logger;
 
 public final class FingerprintStore {
 
-  private final Map<String, FingerprintRecord> store = new ConcurrentHashMap<>();
+  public static final int DEFAULT_MAX_ENTRIES = 100_000;
+
+  private final Map<String, FingerprintRecord> store;
   private final Duration ttl;
+  private final int maxEntries;
   private final Logger logger;
   private final ScheduledExecutorService scheduler;
 
   public FingerprintStore(Duration ttl, Logger logger) {
+    this(ttl, DEFAULT_MAX_ENTRIES, logger);
+  }
+
+  public FingerprintStore(Duration ttl, int maxEntries, Logger logger) {
+    if (maxEntries < 1) {
+      throw new IllegalArgumentException("maxEntries must be >= 1");
+    }
     this.ttl = ttl;
+    this.maxEntries = maxEntries;
     this.logger = logger;
+    this.store = new LinkedHashMap<>(16, 0.75f, false) {
+      @Override
+      protected boolean removeEldestEntry(Map.Entry<String, FingerprintRecord> eldest) {
+        return size() > FingerprintStore.this.maxEntries;
+      }
+    };
     this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
       Thread thread = new Thread(r, "ja4-cleanup");
       thread.setDaemon(true);
@@ -29,19 +46,35 @@ public final class FingerprintStore {
   }
 
   public void put(FingerprintRecord record) {
-    store.put(record.sessionId(), record);
+    synchronized (store) {
+      // Remove first so an updated record moves to the tail (newest) in insertion order
+      // and survives eldest-entry eviction.
+      store.remove(record.sessionId());
+      store.put(record.sessionId(), record);
+    }
   }
 
   public FingerprintRecord get(String sessionId) {
-    FingerprintRecord record = store.get(sessionId);
+    FingerprintRecord record;
+    synchronized (store) {
+      record = store.get(sessionId);
+    }
     if (record == null) {
       return null;
     }
     if (record.isExpired(Instant.now(), ttl)) {
-      store.remove(sessionId);
+      synchronized (store) {
+        store.remove(sessionId);
+      }
       return null;
     }
     return record;
+  }
+
+  public int size() {
+    synchronized (store) {
+      return store.size();
+    }
   }
 
   public void shutdown() {
@@ -60,10 +93,8 @@ public final class FingerprintStore {
   private void cleanupExpired() {
     try {
       Instant now = Instant.now();
-      for (var entry : store.entrySet()) {
-        if (entry.getValue().isExpired(now, ttl)) {
-          store.remove(entry.getKey());
-        }
+      synchronized (store) {
+        store.entrySet().removeIf(e -> e.getValue().isExpired(now, ttl));
       }
     } catch (Exception ex) {
       logger.log(Level.WARNING, "Failed to cleanup expired fingerprints", ex);
