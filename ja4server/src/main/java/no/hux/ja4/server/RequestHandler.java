@@ -62,10 +62,10 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
       sendContinue(ctx);
     }
 
-    QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
-    String path = decoder.path();
-
     try {
+      QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
+      String path = decoder.path();
+
       if (path.startsWith(LOOKUP_PREFIX)) {
         handleLookup(ctx, request, path.substring(LOOKUP_PREFIX.length()));
       } else {

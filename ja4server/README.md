@@ -192,6 +192,7 @@ Command-line options:
 --max-content-length <bytes>  Max HTTP body (default: 1048576)
 --max-store-entries <count>   Max fingerprint records kept in memory (default: 100000)
 --require-uuid-session-id <bool>  Reject session IDs that are not valid UUIDs (default: false)
+--idle-timeout-seconds <seconds>  Close idle connections after N seconds, 0 disables (default: 60)
 ```
 
 ### Notes on TLS Configuration
@@ -221,6 +222,7 @@ Command-line options:
 - The store is capped at `--max-store-entries` records (default: 100 000); when full, the oldest entry is evicted on insert. Re-inserting an existing SessionID refreshes its position so frequently-seen sessions aren't evicted prematurely.
 - When `--require-uuid-session-id true` is set, requests whose SessionID is not a canonical 8-4-4-4-12 hex UUID are rejected with `400`. Use this when your clients always provide UUIDs, to prevent scanner traffic from polluting the store.
 - Lookups after expiry return `404`.
+- Idle connections are closed after `--idle-timeout-seconds` of no read or write activity (default: 60, `0` disables). This reaps half-open and keep-alive connections left open by scanners so they can't accumulate and exhaust memory.
 
 ## Logging
 

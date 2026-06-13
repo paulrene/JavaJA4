@@ -18,10 +18,12 @@ public final class ServerConfig {
   private final int maxStoreEntries;
   private final boolean requireUuidSessionId;
   private final String apiUserPassword;
+  private final int idleTimeoutSeconds;
 
   public ServerConfig(String host, int port, String environment, Path certPath, Path keyPath,
       Path letsEncryptDir, String domain, Duration ttl, int maxContentLength,
-      int maxStoreEntries, boolean requireUuidSessionId, String apiUserPassword) {
+      int maxStoreEntries, boolean requireUuidSessionId, String apiUserPassword,
+      int idleTimeoutSeconds) {
     this.host = host;
     this.port = port;
     this.environment = environment.toLowerCase(Locale.ROOT);
@@ -34,6 +36,7 @@ public final class ServerConfig {
     this.maxStoreEntries = maxStoreEntries;
     this.requireUuidSessionId = requireUuidSessionId;
     this.apiUserPassword = apiUserPassword;
+    this.idleTimeoutSeconds = idleTimeoutSeconds;
   }
 
   public String getHost() {
@@ -82,6 +85,10 @@ public final class ServerConfig {
 
   public String getApiUserPassword() {
     return apiUserPassword;
+  }
+
+  public int getIdleTimeoutSeconds() {
+    return idleTimeoutSeconds;
   }
 
   public boolean isProd() {

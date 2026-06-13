@@ -57,9 +57,12 @@ public final class ConfigParser {
     boolean requireUuidSessionId = parseBoolean(
         options.getOrDefault("require-uuid-session-id", "false"), "require-uuid-session-id");
     String apiUserPassword = options.get("userpass");
+    int idleTimeoutSeconds = parseInt(options.getOrDefault("idle-timeout-seconds", "60"),
+        "idle-timeout-seconds");
 
     ServerConfig config = new ServerConfig(host, port, env, cert, key, letsEncryptDir, domain, ttl,
-        maxContentLength, maxStoreEntries, requireUuidSessionId, apiUserPassword);
+        maxContentLength, maxStoreEntries, requireUuidSessionId, apiUserPassword,
+        idleTimeoutSeconds);
     validate(config);
     return config;
   }
@@ -81,6 +84,7 @@ public final class ConfigParser {
           --max-content-length <bytes>    Max HTTP body (default: 1048576)
           --max-store-entries <count>     Max fingerprint records kept in memory (default: 100000)
           --require-uuid-session-id <bool> Reject session IDs that are not valid UUIDs (default: false)
+          --idle-timeout-seconds <seconds> Close idle connections after N seconds, 0 disables (default: 60)
           --help                          Show this help
         """;
     System.out.println(usage);
@@ -118,6 +122,9 @@ public final class ConfigParser {
     }
     if (config.getMaxStoreEntries() < 1) {
       throw new IllegalArgumentException("max-store-entries must be >= 1");
+    }
+    if (config.getIdleTimeoutSeconds() < 0) {
+      throw new IllegalArgumentException("idle-timeout-seconds must be >= 0");
     }
     if (config.isProd() && config.getCertPath() == null && config.getDomain() == null) {
       throw new IllegalArgumentException("Production mode requires --domain or --cert/--key");

@@ -12,6 +12,7 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.JdkLoggerFactory;
@@ -20,6 +21,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import no.hux.ja4.store.FingerprintStore;
@@ -54,6 +56,12 @@ public final class Ja4Server {
           .childHandler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel ch) {
+              int idleTimeoutSeconds = config.getIdleTimeoutSeconds();
+              if (idleTimeoutSeconds > 0) {
+                ch.pipeline().addLast("idleState",
+                    new IdleStateHandler(0, 0, idleTimeoutSeconds, TimeUnit.SECONDS));
+                ch.pipeline().addLast("idleClose", new IdleConnectionHandler(logger));
+              }
               ch.pipeline().addLast("state", new ConnectionStateHandler(stateKey));
               ch.pipeline().addLast("clientHello", new ClientHelloCaptureHandler(stateKey, logger));
               ch.pipeline().addLast("ssl", sslContext.newHandler(ch.alloc()));
