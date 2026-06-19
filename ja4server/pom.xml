@@ -31,6 +31,16 @@
       <artifactId>pcap4j-core</artifactId>
       <version>1.8.2</version>
     </dependency>
+    <!-- Packet factory that maps captured bytes to typed packets (IPv4/TCP/etc).
+         Without a factory module, pcap4j returns undissected raw payloads and
+         get(IpV4Packet.class) is always null, so capture silently does nothing.
+         The "static" variant is reflection-free, so it survives shading into the
+         uber-jar. -->
+    <dependency>
+      <groupId>org.pcap4j</groupId>
+      <artifactId>pcap4j-packetfactory-static</artifactId>
+      <version>1.8.2</version>
+    </dependency>
     <!-- pcap4j 1.8.2 pulls JNA 5.3.1 which lacks macOS/aarch64 native support;
          override to a modern JNA so live capture works on Apple Silicon. -->
     <dependency>

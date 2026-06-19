@@ -18,7 +18,6 @@ import org.pcap4j.packet.TcpMaximumSegmentSizeOption;
 import org.pcap4j.packet.TcpNoOperationOption;
 import org.pcap4j.packet.TcpPacket;
 import org.pcap4j.packet.TcpPacket.TcpOption;
-import org.pcap4j.packet.TcpSackPermittedOption;
 import org.pcap4j.packet.TcpWindowScaleOption;
 import org.pcap4j.packet.namednumber.EtherType;
 import org.pcap4j.packet.namednumber.IpNumber;
@@ -42,14 +41,14 @@ class PacketCaptureServiceTest {
     TcpInfoStore store = new TcpInfoStore(60L, 1000, Logger.getLogger("test"));
     PacketCaptureService service = newService(store);
 
-    // options: MSS(1460), SACK-permitted, NOP, WindowScale(6) -> kinds 2-4-1-3
+    // options: MSS(1460), NOP, WindowScale(6) -> kinds 2-1-3 (8 bytes, 4-byte aligned)
     Packet syn = buildTcp(CLIENT_IP, CLIENT_PORT, SERVER_IP, SERVER_PORT, true, false, 65535, 64,
         synOptions(1460, (byte) 6));
     service.handlePacket(syn, 1_000_000L);
 
     TcpHandshakeInfo info = store.get(CLIENT_IP, CLIENT_PORT);
     assertNotNull(info);
-    assertEquals("65535_2-4-1-3_1460_6", info.getJa4t());
+    assertEquals("65535_2-1-3_1460_6", info.getJa4t());
     assertEquals(64, info.getClientTtl());
   }
 
@@ -88,10 +87,11 @@ class PacketCaptureServiceTest {
   }
 
   private static List<TcpOption> synOptions(int mss, byte windowScale) {
+    // MSS (4) + NOP (1) + Window Scale (3) = 8 bytes, 4-byte aligned so the
+    // header round-trips through raw bytes exactly like a real SYN.
     List<TcpOption> options = new ArrayList<>();
     options.add(new TcpMaximumSegmentSizeOption.Builder()
         .maxSegSize((short) mss).correctLengthAtBuild(true).build());
-    options.add(TcpSackPermittedOption.getInstance());
     options.add(TcpNoOperationOption.getInstance());
     options.add(new TcpWindowScaleOption.Builder()
         .shiftCount(windowScale).correctLengthAtBuild(true).build());
@@ -136,8 +136,11 @@ class PacketCaptureServiceTest {
         .payloadBuilder(ip)
         .paddingAtBuild(true);
 
-    // The built packet retains the typed L2/L3/L4 structure that pcap4j's
-    // packet factory produces from captured bytes at runtime.
-    return eth.build();
+    // Round-trip through raw bytes to mirror exactly what libpcap delivers at
+    // capture time. This exercises the pcap4j packet factory: if the factory
+    // dependency is missing, dissection yields a null IpV4Packet and the
+    // assertions below fail (guarding against silent capture breakage).
+    byte[] raw = eth.build().getRawData();
+    return EthernetPacket.newPacket(raw, 0, raw.length);
   }
 }
