@@ -7,6 +7,7 @@ public final class ConnectionState {
   private volatile long firstRequestAtNanos;
   private volatile ClientHelloInfo clientHelloInfo;
   private volatile String ja4;
+  private volatile no.hux.ja4.capture.TcpHandshakeInfo handshake;
 
   public ConnectionState(long acceptedAtNanos) {
     this.acceptedAtNanos = acceptedAtNanos;
@@ -50,5 +51,19 @@ public final class ConnectionState {
 
   public void setJa4(String ja4) {
     this.ja4 = ja4;
+  }
+
+  /**
+   * Out-of-band TCP handshake data for this connection, latched at connect time
+   * so the request handler can read JA4T / real JA4L regardless of when (or how
+   * often) requests arrive on a keep-alive connection. {@code null} when packet
+   * capture is disabled.
+   */
+  public no.hux.ja4.capture.TcpHandshakeInfo getHandshake() {
+    return handshake;
+  }
+
+  public void setHandshake(no.hux.ja4.capture.TcpHandshakeInfo handshake) {
+    this.handshake = handshake;
   }
 }

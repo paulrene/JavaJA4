@@ -76,7 +76,8 @@ public final class Ja4Server {
                     new IdleStateHandler(0, 0, idleTimeoutSeconds, TimeUnit.SECONDS));
                 ch.pipeline().addLast("idleClose", new IdleConnectionHandler(logger));
               }
-              ch.pipeline().addLast("state", new ConnectionStateHandler(stateKey));
+              ch.pipeline().addLast("state",
+                  new ConnectionStateHandler(stateKey, tcpInfoStoreRef));
               ch.pipeline().addLast("clientHello", new ClientHelloCaptureHandler(stateKey, logger));
               ch.pipeline().addLast("ssl", sslContext.newHandler(ch.alloc()));
               ch.pipeline().addLast("handshake", new HandshakeTimingHandler(stateKey, logger));

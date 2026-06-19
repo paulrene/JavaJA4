@@ -119,18 +119,21 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
       remotePort = remote.getPort();
     }
 
-    // Join out-of-band TCP capture data (JA4T + real JA4L) by client ip:port.
+    // Join out-of-band TCP capture data (JA4T + real JA4L). The handshake record
+    // is normally latched onto the connection at connect time (so it survives
+    // keep-alive reuse and store eviction); fall back to a live store lookup.
     // A real handshake-timed JA4L overrides the application-level estimate; if
     // capture is disabled or missed the handshake, the estimate is kept.
     String ja4t = null;
-    if (tcpInfoStore != null && ip != null && remotePort >= 0) {
-      TcpHandshakeInfo handshake = tcpInfoStore.get(ip, remotePort);
-      if (handshake != null) {
-        ja4t = handshake.getJa4t();
-        String realJa4l = handshake.computeJa4l();
-        if (realJa4l != null) {
-          ja4l = realJa4l;
-        }
+    TcpHandshakeInfo handshake = state != null ? state.getHandshake() : null;
+    if (handshake == null && tcpInfoStore != null && ip != null && remotePort >= 0) {
+      handshake = tcpInfoStore.get(ip, remotePort);
+    }
+    if (handshake != null) {
+      ja4t = handshake.getJa4t();
+      String realJa4l = handshake.computeJa4l();
+      if (realJa4l != null) {
+        ja4l = realJa4l;
       }
     }
 
