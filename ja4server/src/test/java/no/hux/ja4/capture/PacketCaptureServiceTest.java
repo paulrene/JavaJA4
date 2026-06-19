@@ -70,8 +70,10 @@ class PacketCaptureServiceTest {
 
     TcpHandshakeInfo info = store.get(CLIENT_IP, CLIENT_PORT);
     assertNotNull(info);
-    // (ack - synAck) / 2 = (1_030_000 - 1_010_000) / 2 = 10_000 microseconds; ttl 64.
-    assertEquals("10000_64", info.computeJa4l());
+    // JA4L-C = (ack - synAck) / 2 = (1_030_000 - 1_010_000) / 2 = 10_000 us; client ttl 64.
+    assertEquals("10000_64", info.computeJa4lC());
+    // JA4L-S = (synAck - syn) / 2 = (1_010_000 - 1_000_000) / 2 = 5_000 us; server ttl 64.
+    assertEquals("5000_64", info.computeJa4lS());
   }
 
   @Test

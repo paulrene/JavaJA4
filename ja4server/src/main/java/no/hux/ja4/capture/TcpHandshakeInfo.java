@@ -14,6 +14,7 @@ public final class TcpHandshakeInfo {
 
   private volatile String ja4t;
   private volatile int clientTtl;
+  private volatile int serverTtl;
   private volatile long synMicros;
   private volatile long synAckMicros;
   private volatile long ackMicros;
@@ -42,6 +43,14 @@ public final class TcpHandshakeInfo {
     this.clientTtl = clientTtl;
   }
 
+  public int getServerTtl() {
+    return serverTtl;
+  }
+
+  public void setServerTtl(int serverTtl) {
+    this.serverTtl = serverTtl;
+  }
+
   public long getSynMicros() {
     return synMicros;
   }
@@ -67,13 +76,14 @@ public final class TcpHandshakeInfo {
   }
 
   /**
-   * Computes the client-side JA4L ({@code <latency>_<ttl>}) once the client's
+   * Computes the client-side JA4L-C ({@code <latency>_<ttl>}) once the client's
    * handshake-completing ACK has been observed.
    *
    * <p>Latency is half of the (ACK - SYN/ACK) delta in microseconds, matching the
-   * FoxIO reference. Returns {@code null} until both timestamps are available.
+   * FoxIO reference, paired with the TTL of the client's SYN. Returns {@code null}
+   * until both timestamps are available.
    */
-  public String computeJa4l() {
+  public String computeJa4lC() {
     long synAck = synAckMicros;
     long ack = ackMicros;
     if (synAck == 0L || ack == 0L) {
@@ -81,5 +91,23 @@ public final class TcpHandshakeInfo {
     }
     long latency = Math.max(0L, (ack - synAck) / 2L);
     return latency + "_" + clientTtl;
+  }
+
+  /**
+   * Computes the server-side JA4L-S ({@code <latency>_<ttl>}) once the server's
+   * SYN/ACK has been observed for an already-seen client SYN.
+   *
+   * <p>Latency is half of the (SYN/ACK - SYN) delta in microseconds, matching the
+   * FoxIO reference, paired with the TTL of the server's SYN/ACK. Returns
+   * {@code null} until both timestamps are available.
+   */
+  public String computeJa4lS() {
+    long syn = synMicros;
+    long synAck = synAckMicros;
+    if (syn == 0L || synAck == 0L) {
+      return null;
+    }
+    long latency = Math.max(0L, (synAck - syn) / 2L);
+    return latency + "_" + serverTtl;
   }
 }

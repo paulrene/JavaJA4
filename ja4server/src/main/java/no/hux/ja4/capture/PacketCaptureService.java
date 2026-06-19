@@ -175,6 +175,7 @@ public final class PacketCaptureService {
       TcpHandshakeInfo info = store.get(clientIp, dstPort);
       if (info != null && info.getSynAckMicros() == 0L) {
         info.setSynAckMicros(micros);
+        info.setServerTtl(iph.getTtlAsInt());
       }
     }
   }

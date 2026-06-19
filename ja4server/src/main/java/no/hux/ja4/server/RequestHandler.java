@@ -125,22 +125,24 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     // A real handshake-timed JA4L overrides the application-level estimate; if
     // capture is disabled or missed the handshake, the estimate is kept.
     String ja4t = null;
+    String ja4ls = null;
     TcpHandshakeInfo handshake = state != null ? state.getHandshake() : null;
     if (handshake == null && tcpInfoStore != null && ip != null && remotePort >= 0) {
       handshake = tcpInfoStore.get(ip, remotePort);
     }
     if (handshake != null) {
       ja4t = handshake.getJa4t();
-      String realJa4l = handshake.computeJa4l();
+      String realJa4l = handshake.computeJa4lC();
       if (realJa4l != null) {
         ja4l = realJa4l;
       }
+      ja4ls = handshake.computeJa4lS();
     }
 
     String userAgent = request.headers().get("User-Agent");
 
-    FingerprintRecord record = new FingerprintRecord(sessionId, Instant.now(), ja4, ja4h, ja4l, ja4t,
-        ip, userAgent);
+    FingerprintRecord record = new FingerprintRecord(sessionId, Instant.now(), ja4, ja4h, ja4l, ja4ls,
+        ja4t, ip, userAgent);
     store.put(record);
 
     sendGif(ctx, request);
@@ -244,6 +246,8 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     appendField(sb, "ja4h", record.ja4h());
     sb.append(',');
     appendField(sb, "ja4l", record.ja4l());
+    sb.append(',');
+    appendField(sb, "ja4ls", record.ja4ls());
     sb.append(',');
     appendField(sb, "ja4t", record.ja4t());
     sb.append('}');

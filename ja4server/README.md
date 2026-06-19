@@ -4,7 +4,7 @@ Netty-based JA4 fingerprinting server (Java 21) that captures:
 
 - JA4 TLS Client fingerprint
 - JA4 HTTP fingerprint
-- JA4L Client Latency fingerprint (real handshake timing + TTL when packet capture is enabled, otherwise an application-level approximation)
+- JA4L Latency fingerprints: JA4L-C (client) always, and JA4L-S (server) when packet capture is enabled (real handshake timing + TTL when packet capture is enabled, otherwise JA4L-C is an application-level approximation)
 - JA4T TCP Client fingerprint (requires packet capture)
 
 The service is intended to be called by a client (browser/app) to generate a fingerprint, then queried by backend systems using the lookup API.
@@ -58,13 +58,16 @@ existing JA4/JA4H/JA4L behavior.
     "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
     "ja4h": "ge11nn07enus_bc8d2ed93139_000000000000_000000000000",
     "ja4l": "420_0",
+    "ja4ls": "5000_64",
     "ja4t": "65535_2-4-8-1-3_1460_6"
   }
 }
 ```
 
-The `ja4t` field is only present when packet capture is enabled and the client's
-SYN was observed; otherwise it is omitted (or `null`).
+The `ja4t` and `ja4ls` fields are only present when packet capture is enabled and
+the relevant handshake packets were observed; otherwise they are omitted (or
+`null`). `ja4l` (JA4L-C) is always present, falling back to an application-level
+estimate when capture is disabled.
 
 ## Reading the Fingerprints
 
@@ -118,32 +121,46 @@ Example:
 ge11nn07enus_bc8d2ed93139_000000000000_000000000000
 ```
 
-### JA4L (Client Latency Fingerprint)
+### JA4L (Latency Fingerprints: JA4L-C and JA4L-S)
 
-Format:
+JA4L is split into two values, matching the FoxIO reference:
+
+- **`ja4l` (JA4L-C, client latency):** half of the client's round-trip,
+  paired with the client's TTL.
+- **`ja4ls` (JA4L-S, server latency):** half of the server's round-trip,
+  paired with the server's TTL.
+
+Both use the format:
 
 ```
 <latency>_<ttl>
 ```
 
-- `<latency>`: client-side latency in microseconds (one half of the round-trip).
-- `<ttl>`: TTL of the inbound client packet.
-
-There are two ways this is computed:
-
-- **Real measurement (packet capture enabled):** `<latency>` is
-  `(clientACK_time − serverSYNACK_time) / 2` from the observed TCP handshake, and
-  `<ttl>` is the IP TTL of the client's SYN. Comparing the TTL to the nearest
+- `<latency>`: one-way latency estimate in microseconds (one half of the
+  observed round-trip).
+- `<ttl>`: IP TTL of the relevant packet. Comparing the TTL to the nearest
   natural start value (64/128/255) yields a hop count.
-- **Estimate (packet capture disabled, or SYN not observed):** `<latency>` is
-  half of the elapsed microseconds between connection accept and the first HTTP
-  request, and `<ttl>` is `0`. This is a coarse application-level approximation,
-  not a true JA4L.
 
-Example:
+How each is computed:
+
+- **JA4L-C, real measurement (packet capture enabled):** `<latency>` is
+  `(clientACK_time − serverSYNACK_time) / 2` from the observed TCP handshake, and
+  `<ttl>` is the IP TTL of the client's SYN.
+- **JA4L-C, estimate (packet capture disabled, or SYN not observed):**
+  `<latency>` is half of the elapsed microseconds between connection accept and
+  the first HTTP request, and `<ttl>` is `0`. This is a coarse application-level
+  approximation, not a true JA4L.
+- **JA4L-S (packet capture only):** `<latency>` is
+  `(serverSYNACK_time − clientSYN_time) / 2` from the observed TCP handshake, and
+  `<ttl>` is the IP TTL of the server's SYN/ACK. There is no application-level
+  fallback, so `ja4ls` is omitted when capture is disabled or the handshake was
+  not fully observed.
+
+Examples:
 
 ```
-420_0
+ja4l:  420_0
+ja4ls: 5000_64
 ```
 
 ### JA4T (TCP Client Fingerprint)

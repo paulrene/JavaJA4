@@ -9,6 +9,7 @@ public record FingerprintRecord(
   String ja4,
   String ja4h,
   String ja4l,
+  String ja4ls,
   String ja4t,
   String ip,
   String userAgent) {
