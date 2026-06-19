@@ -216,13 +216,12 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
         "no-store, no-cache, must-revalidate, max-age=0");
     response.headers().set(HttpHeaderNames.PRAGMA, "no-cache");
     response.headers().set(HttpHeaderNames.EXPIRES, "0");
-    boolean keepAlive = HttpUtil.isKeepAlive(request);
-    if (keepAlive) {
-      response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
-      ctx.writeAndFlush(response);
-    } else {
-      ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-    }
+    // The fingerprint endpoint is one-shot: a client loads the pixel once and
+    // never reuses the connection. Always close (ignoring the client's
+    // keep-alive request) to free the socket and per-connection state
+    // immediately instead of holding it until the idle timeout.
+    response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+    ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
   }
 
   private static String recordToJson(FingerprintRecord record, long uptimeSeconds) {

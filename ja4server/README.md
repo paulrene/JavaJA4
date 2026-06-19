@@ -18,7 +18,7 @@ The service is intended to be called by a client (browser/app) to generate a fin
    - JA4L from connection-accept → first-request timing (or, when packet capture is enabled, from the real TCP handshake timing and the client SYN's IP TTL).
    - JA4T from the client's TCP SYN (only when packet capture is enabled).
 3. The result is stored in memory keyed by `<SessionID>`.
-4. The response to the fingerprint request is a **1x1 GIF** with no-cache headers.
+4. The response to the fingerprint request is a **1x1 GIF** with no-cache headers, and the connection is closed (`Connection: close`) since the fingerprint endpoint is one-shot.
 5. A backend can retrieve the stored data using `https://server/api/lookup/<SessionID>`.
 
 ### Packet capture (JA4T and real JA4L)
@@ -370,7 +370,8 @@ Notes:
 - The store is capped at `--max-store-entries` records (default: 100 000); when full, the oldest entry is evicted on insert. Re-inserting an existing SessionID refreshes its position so frequently-seen sessions aren't evicted prematurely.
 - When `--require-uuid-session-id true` is set, requests whose SessionID is not a canonical 8-4-4-4-12 hex UUID are rejected with `400`. Use this when your clients always provide UUIDs, to prevent scanner traffic from polluting the store.
 - Lookups after expiry return `404`.
-- Idle connections are closed after `--idle-timeout-seconds` of no read or write activity (default: 60, `0` disables). This reaps half-open and keep-alive connections left open by scanners so they can't accumulate and exhaust memory.
+- The fingerprint endpoint closes the connection immediately after the GIF response (`Connection: close`), since each client fingerprints once and never reuses the socket. This frees the connection and its per-connection state right away rather than holding it until the idle timeout. The lookup API still honors keep-alive so backends can batch lookups.
+- Idle connections are closed after `--idle-timeout-seconds` of no read or write activity (default: 60, `0` disables). This reaps half-open connections and any keep-alive connections (e.g. lookup-API clients or scanners) left open so they can't accumulate and exhaust memory.
 
 ## Logging
 
