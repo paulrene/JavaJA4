@@ -4,7 +4,8 @@ Netty-based JA4 fingerprinting server (Java 21) that captures:
 
 - JA4 TLS Client fingerprint
 - JA4 HTTP fingerprint
-- JA4 Client Latency fingerprint (application-level approximation)
+- JA4L Client Latency fingerprint (real handshake timing + TTL when packet capture is enabled, otherwise an application-level approximation)
+- JA4T TCP Client fingerprint (requires packet capture)
 
 The service is intended to be called by a client (browser/app) to generate a fingerprint, then queried by backend systems using the lookup API.
 
@@ -14,10 +15,27 @@ The service is intended to be called by a client (browser/app) to generate a fin
 2. The server derives:
    - JA4 from the TLS ClientHello.
    - JA4H from the HTTP request headers.
-   - JA4L from connection-accept → first-request timing.
+   - JA4L from connection-accept → first-request timing (or, when packet capture is enabled, from the real TCP handshake timing and the client SYN's IP TTL).
+   - JA4T from the client's TCP SYN (only when packet capture is enabled).
 3. The result is stored in memory keyed by `<SessionID>`.
 4. The response to the fingerprint request is a **1x1 GIF** with no-cache headers.
 5. A backend can retrieve the stored data using `https://server/api/lookup/<SessionID>`.
+
+### Packet capture (JA4T and real JA4L)
+
+JA4T and a true JA4L measurement require fields that live in the TCP/IP headers
+(SYN window size, MSS, window scale, option order, and IP TTL) plus the exact
+SYN / SYN-ACK / ACK timestamps. Netty runs **above** the kernel TCP stack, so by
+the time bytes reach a handler the handshake is finished and those headers are
+gone. To recover them the server can run an **optional, out-of-band libpcap
+capture** alongside Netty in the same JVM, correlated to each connection by the
+client `ip:port`.
+
+This is **disabled by default**. Enable it with `--enable-pcap true` (see
+[Configuration](#configuration)). When disabled, the server runs as a plain
+pure-Java jar with no elevated privileges, JA4T is omitted, and JA4L falls back
+to the accept → first-request estimate. Capture failures never degrade the
+existing JA4/JA4H/JA4L behavior.
 
 ## Endpoints
 
@@ -39,10 +57,14 @@ The service is intended to be called by a client (browser/app) to generate a fin
   "fingerprints": {
     "ja4": "t13d1516h2_8daaf6152771_02713d6af862",
     "ja4h": "ge11nn07enus_bc8d2ed93139_000000000000_000000000000",
-    "ja4l": "420_0"
+    "ja4l": "420_0",
+    "ja4t": "65535_2-4-8-1-3_1460_6"
   }
 }
 ```
+
+The `ja4t` field is only present when packet capture is enabled and the client's
+SYN was observed; otherwise it is omitted (or `null`).
 
 ## Reading the Fingerprints
 
@@ -104,13 +126,48 @@ Format:
 <latency>_<ttl>
 ```
 
-- `<latency>`: half of the elapsed microseconds between connection accept and first HTTP request.
-- `<ttl>`: TTL hint (this implementation uses `0`).
+- `<latency>`: client-side latency in microseconds (one half of the round-trip).
+- `<ttl>`: TTL of the inbound client packet.
+
+There are two ways this is computed:
+
+- **Real measurement (packet capture enabled):** `<latency>` is
+  `(clientACK_time − serverSYNACK_time) / 2` from the observed TCP handshake, and
+  `<ttl>` is the IP TTL of the client's SYN. Comparing the TTL to the nearest
+  natural start value (64/128/255) yields a hop count.
+- **Estimate (packet capture disabled, or SYN not observed):** `<latency>` is
+  half of the elapsed microseconds between connection accept and the first HTTP
+  request, and `<ttl>` is `0`. This is a coarse application-level approximation,
+  not a true JA4L.
 
 Example:
 
 ```
 420_0
+```
+
+### JA4T (TCP Client Fingerprint)
+
+Derived from the client's TCP SYN; **only emitted when packet capture is
+enabled** (see [Packet capture](#packet-capture-ja4t-and-real-ja4l)).
+
+Format:
+
+```
+<windowSize>_<tcpOptionsInOrder>_<MSS>_<windowScale>
+```
+
+- `<windowSize>`: TCP window size from the SYN.
+- `<tcpOptionsInOrder>`: TCP option kind numbers, dash-separated, in the exact
+  order seen (e.g. `2`=MSS, `1`=NOP, `3`=Window Scale, `4`=SACK-permitted,
+  `8`=Timestamp, `0`=EOL); `00` if there are no options.
+- `<MSS>`: value from the MSS option (`00` if absent).
+- `<windowScale>`: value from the Window Scale option (`00` if absent).
+
+Example:
+
+```
+65535_2-4-8-1-3_1460_6
 ```
 
 ## Build
@@ -193,7 +250,98 @@ Command-line options:
 --max-store-entries <count>   Max fingerprint records kept in memory (default: 100000)
 --require-uuid-session-id <bool>  Reject session IDs that are not valid UUIDs (default: false)
 --idle-timeout-seconds <seconds>  Close idle connections after N seconds, 0 disables (default: 60)
+--enable-pcap <bool>          Enable out-of-band libpcap capture for JA4T and real JA4L (default: false)
+--capture-iface <name>        Capture interface name (default: auto-selected from the bind address)
 ```
+
+### Packet Capture Configuration
+
+`--enable-pcap true` turns on the libpcap capture layer described in
+[Packet capture](#packet-capture-ja4t-and-real-ja4l). This requires:
+
+- **Native libpcap** present on the host:
+  - macOS: bundled with the OS.
+  - Linux: install `libpcap` (e.g. `apt-get install libpcap0.8`).
+  - Windows: install [Npcap](https://npcap.com/).
+- **Raw-packet privileges** for the JVM:
+  - Run as root, **or**
+  - Linux: grant capabilities once with
+    `sudo setcap cap_net_raw,cap_net_admin+eip "$(readlink -f "$(command -v java)")"`
+    (note: applies to the resolved `java` binary).
+
+By default the capture interface is auto-selected from the bind address
+(loopback when bound to `127.0.0.1`, otherwise the NIC owning the bind address,
+falling back to the first running non-loopback device). Override it with
+`--capture-iface` (e.g. `--capture-iface lo0` on macOS, `--capture-iface eth0`
+on Linux).
+
+If capture cannot start (missing privileges, no libpcap, no device), the server
+logs a warning and continues without JA4T/real-JA4L — it never fails to start.
+
+Example:
+
+```sh
+./scripts/start.sh --env local --port 8443 --enable-pcap true --capture-iface lo0
+```
+
+### Linux Deployment (systemd)
+
+`scripts/start.sh` passes all flags straight through, so on Linux you only swap
+the interface name:
+
+```sh
+./scripts/start.sh --env prod --domain example.com --port 443 \
+  --enable-pcap true --capture-iface eth0
+```
+
+For a long-running service, prefer a systemd unit. systemd can grant
+`CAP_NET_RAW` to just this service via `AmbientCapabilities` — cleaner than
+`setcap` on the shared `java` binary, and it lets the process bind `:443` and
+capture packets without running as full root:
+
+```ini
+# /etc/systemd/system/ja4-server.service
+[Unit]
+Description=JA4 Fingerprinting Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ja4
+Group=ja4
+WorkingDirectory=/opt/ja4server
+ExecStart=/usr/bin/java -Xmx512m -XX:+ExitOnOutOfMemoryError \
+  -jar /opt/ja4server/ja4-server.jar \
+  --env prod --domain example.com --port 443 \
+  --enable-pcap true --capture-iface eth0
+# Required for packet capture and binding to :443 as a non-root user:
+AmbientCapabilities=CAP_NET_RAW CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```sh
+sudo apt-get install libpcap0.8          # native libpcap (Debian/Ubuntu)
+sudo useradd --system --no-create-home ja4
+sudo systemctl daemon-reload
+sudo systemctl enable --now ja4-server
+journalctl -u ja4-server -f              # follow logs
+```
+
+Notes:
+
+- Drop `CAP_NET_BIND_SERVICE` if you terminate TLS behind a proxy and bind a
+  high port (e.g. `--port 8443`).
+- Drop both capabilities (and `--enable-pcap`) entirely to run the plain
+  pure-Java server with no privileges.
+- If the `ja4` user can't read the Let's Encrypt private key, either adjust the
+  key's group/permissions or run a cert-copy step on renewal.
 
 ### Notes on TLS Configuration
 
@@ -237,7 +385,10 @@ Logs are written to `logs/ja4-server.log` when using `scripts/start.sh`.
 
 ## Limitations
 
-- JA4L is computed from connection accept → first HTTP request timing and does not use IP TTL data.
+- Without `--enable-pcap`, JA4L is computed from connection accept → first HTTP request timing and does not use IP TTL data (TTL is reported as `0`), and JA4T is not available.
+- Packet capture (`--enable-pcap`) requires native libpcap/Npcap and raw-packet privileges (root or `CAP_NET_RAW`), changing the deployment model from a plain jar to one that needs capabilities and a native library.
+- Behind an L4/L7 proxy, load balancer, or CDN, the SYN observed is the terminator's, not the real client's — so JA4T and the captured JA4L then describe the proxy, not the end client. (Same caveat FoxIO documents.)
+- Capture only handles IPv4; the server itself binds IPv4 only.
 - JA4 depends on parsing the TLS ClientHello bytes observed by Netty; unusual TLS implementations may be incomplete.
 - Fingerprints are not persisted; use an external store if persistence is required.
 - The server only binds to IPv4; use an IPv4 literal or a hostname that resolves to IPv4.

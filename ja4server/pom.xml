@@ -26,6 +26,31 @@
       <artifactId>netty-pkitesting</artifactId>
       <version>${netty.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.pcap4j</groupId>
+      <artifactId>pcap4j-core</artifactId>
+      <version>1.8.2</version>
+    </dependency>
+    <!-- pcap4j 1.8.2 pulls JNA 5.3.1 which lacks macOS/aarch64 native support;
+         override to a modern JNA so live capture works on Apple Silicon. -->
+    <dependency>
+      <groupId>net.java.dev.jna</groupId>
+      <artifactId>jna</artifactId>
+      <version>5.14.0</version>
+    </dependency>
+    <!-- pcap4j logs via SLF4J; bind to a no-op to avoid the missing-provider
+         warning (the server itself uses java.util.logging). -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-nop</artifactId>
+      <version>1.7.36</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.3</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

@@ -28,6 +28,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLHandshakeException;
+import no.hux.ja4.capture.TcpHandshakeInfo;
+import no.hux.ja4.capture.TcpInfoStore;
 import no.hux.ja4.fingerprint.Ja4HttpFingerprint;
 import no.hux.ja4.fingerprint.Ja4LatencyFingerprint;
 import no.hux.ja4.store.FingerprintRecord;
@@ -46,14 +48,17 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
   private final Logger logger;
   private final long serverStartMillis;
   private final boolean requireUuidSessionId;
+  private final TcpInfoStore tcpInfoStore;
 
   public RequestHandler(FingerprintStore store, AttributeKey<ConnectionState> stateKey,
-      Logger logger, long serverStartMillis, boolean requireUuidSessionId) {
+      Logger logger, long serverStartMillis, boolean requireUuidSessionId,
+      TcpInfoStore tcpInfoStore) {
     this.store = store;
     this.stateKey = stateKey;
     this.logger = logger;
     this.serverStartMillis = serverStartMillis;
     this.requireUuidSessionId = requireUuidSessionId;
+    this.tcpInfoStore = tcpInfoStore;
   }
 
   @Override
@@ -108,13 +113,31 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     String ja4l = Ja4LatencyFingerprint.compute(state);
 
     String ip = null;
+    int remotePort = -1;
     if (ctx.channel().remoteAddress() instanceof InetSocketAddress remote) {
       ip = remote.getAddress().getHostAddress();
+      remotePort = remote.getPort();
     }
+
+    // Join out-of-band TCP capture data (JA4T + real JA4L) by client ip:port.
+    // A real handshake-timed JA4L overrides the application-level estimate; if
+    // capture is disabled or missed the handshake, the estimate is kept.
+    String ja4t = null;
+    if (tcpInfoStore != null && ip != null && remotePort >= 0) {
+      TcpHandshakeInfo handshake = tcpInfoStore.get(ip, remotePort);
+      if (handshake != null) {
+        ja4t = handshake.getJa4t();
+        String realJa4l = handshake.computeJa4l();
+        if (realJa4l != null) {
+          ja4l = realJa4l;
+        }
+      }
+    }
+
     String userAgent = request.headers().get("User-Agent");
 
-    FingerprintRecord record = new FingerprintRecord(sessionId, Instant.now(), ja4, ja4h, ja4l, ip,
-        userAgent);
+    FingerprintRecord record = new FingerprintRecord(sessionId, Instant.now(), ja4, ja4h, ja4l, ja4t,
+        ip, userAgent);
     store.put(record);
 
     sendGif(ctx, request);
@@ -219,6 +242,8 @@ public final class RequestHandler extends SimpleChannelInboundHandler<FullHttpRe
     appendField(sb, "ja4h", record.ja4h());
     sb.append(',');
     appendField(sb, "ja4l", record.ja4l());
+    sb.append(',');
+    appendField(sb, "ja4t", record.ja4t());
     sb.append('}');
     sb.append('}');
     return sb.toString();

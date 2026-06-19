@@ -59,10 +59,12 @@ public final class ConfigParser {
     String apiUserPassword = options.get("userpass");
     int idleTimeoutSeconds = parseInt(options.getOrDefault("idle-timeout-seconds", "60"),
         "idle-timeout-seconds");
+    boolean enablePcap = parseBoolean(options.getOrDefault("enable-pcap", "false"), "enable-pcap");
+    String captureIface = options.get("capture-iface");
 
     ServerConfig config = new ServerConfig(host, port, env, cert, key, letsEncryptDir, domain, ttl,
         maxContentLength, maxStoreEntries, requireUuidSessionId, apiUserPassword,
-        idleTimeoutSeconds);
+        idleTimeoutSeconds, enablePcap, captureIface);
     validate(config);
     return config;
   }
@@ -85,6 +87,8 @@ public final class ConfigParser {
           --max-store-entries <count>     Max fingerprint records kept in memory (default: 100000)
           --require-uuid-session-id <bool> Reject session IDs that are not valid UUIDs (default: false)
           --idle-timeout-seconds <seconds> Close idle connections after N seconds, 0 disables (default: 60)
+          --enable-pcap <bool>            Capture TCP handshakes for JA4T + real JA4L (needs root/CAP_NET_RAW + libpcap; default: false)
+          --capture-iface <name>          Capture interface name (default: auto-select from bind address)
           --help                          Show this help
         """;
     System.out.println(usage);

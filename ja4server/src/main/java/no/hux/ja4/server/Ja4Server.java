@@ -24,6 +24,8 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import no.hux.ja4.capture.PacketCaptureService;
+import no.hux.ja4.capture.TcpInfoStore;
 import no.hux.ja4.store.FingerprintStore;
 
 public final class Ja4Server {
@@ -47,6 +49,18 @@ public final class Ja4Server {
         logger);
     AttributeKey<ConnectionState> stateKey = AttributeKey.valueOf("ja4State");
     long serverStartMillis = System.currentTimeMillis();
+
+    InetSocketAddress bindAddress = resolveIpv4Address(config.getHost(), config.getPort());
+
+    TcpInfoStore tcpInfoStore = null;
+    PacketCaptureService captureService = null;
+    if (config.isEnablePcap()) {
+      tcpInfoStore = new TcpInfoStore(logger);
+      captureService = new PacketCaptureService(config.getPort(), bindAddress.getAddress(),
+          config.getCaptureIface(), tcpInfoStore, logger);
+      captureService.start();
+    }
+    final TcpInfoStore tcpInfoStoreRef = tcpInfoStore;
 
     EventLoopGroup bossGroup = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
     EventLoopGroup workerGroup = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
@@ -73,15 +87,20 @@ public final class Ja4Server {
                 ch.pipeline().addLast(new BasicAuthHandler(config, "/api"));
               }
               ch.pipeline().addLast("handler", new RequestHandler(store, stateKey, logger,
-                  serverStartMillis, config.isRequireUuidSessionId()));
+                  serverStartMillis, config.isRequireUuidSessionId(), tcpInfoStoreRef));
             }
           });
 
-      InetSocketAddress bindAddress = resolveIpv4Address(config.getHost(), config.getPort());
       Channel channel = bootstrap.bind(bindAddress).sync().channel();
       logger.info("JA4 server listening on https://" + config.getHost() + ":" + config.getPort());
       channel.closeFuture().sync();
     } finally {
+      if (captureService != null) {
+        captureService.stop();
+      }
+      if (tcpInfoStore != null) {
+        tcpInfoStore.shutdown();
+      }
       store.shutdown();
       bossGroup.shutdownGracefully();
       workerGroup.shutdownGracefully();

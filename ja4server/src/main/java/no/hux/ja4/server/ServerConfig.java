@@ -19,11 +19,13 @@ public final class ServerConfig {
   private final boolean requireUuidSessionId;
   private final String apiUserPassword;
   private final int idleTimeoutSeconds;
+  private final boolean enablePcap;
+  private final String captureIface;
 
   public ServerConfig(String host, int port, String environment, Path certPath, Path keyPath,
       Path letsEncryptDir, String domain, Duration ttl, int maxContentLength,
       int maxStoreEntries, boolean requireUuidSessionId, String apiUserPassword,
-      int idleTimeoutSeconds) {
+      int idleTimeoutSeconds, boolean enablePcap, String captureIface) {
     this.host = host;
     this.port = port;
     this.environment = environment.toLowerCase(Locale.ROOT);
@@ -37,6 +39,8 @@ public final class ServerConfig {
     this.requireUuidSessionId = requireUuidSessionId;
     this.apiUserPassword = apiUserPassword;
     this.idleTimeoutSeconds = idleTimeoutSeconds;
+    this.enablePcap = enablePcap;
+    this.captureIface = captureIface;
   }
 
   public String getHost() {
@@ -89,6 +93,14 @@ public final class ServerConfig {
 
   public int getIdleTimeoutSeconds() {
     return idleTimeoutSeconds;
+  }
+
+  public boolean isEnablePcap() {
+    return enablePcap;
+  }
+
+  public String getCaptureIface() {
+    return captureIface;
   }
 
   public boolean isProd() {
